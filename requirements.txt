@@ -1,0 +1,3 @@
+# Needed by net_inspector.py (Room SQL needs nothing beyond the standard library)
+mitmproxy>=12.2      # proxy that captures the calls (also provides cryptography)
+pillow>=13.0         # optional: JPEG/WebP previews; PNG/GIF work without it

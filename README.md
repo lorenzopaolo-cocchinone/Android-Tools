@@ -9,9 +9,27 @@ Needs `adb` (Android SDK platform-tools) and a device or emulator with USB debug
 
 ## Setup (once)
 
-    python3 -m venv .venv && .venv/bin/pip install mitmproxy pillow
+Room SQL works with plain `python3`. Net Inspector needs a virtual environment with the packages in `requirements.txt`.
 
-Room SQL works with plain `python3`; Net Inspector needs the `.venv` (mitmproxy; Pillow for JPEG/WebP previews).
+**Requirements**
+- Python 3.12 or newer, with Tkinter (python.org installers include it; with Homebrew: `brew install python-tk`)
+- `adb` on your `PATH`
+- Python packages (`requirements.txt`):
+  - `mitmproxy` – the proxy that captures the calls
+  - `pillow` – optional, for JPEG/WebP previews (PNG/GIF work without it)
+
+**Create the venv and install the packages**, from the project folder:
+
+    python3 -m venv .venv
+    .venv/bin/pip install --upgrade pip
+    .venv/bin/pip install -r requirements.txt
+
+Check it worked:
+
+    .venv/bin/mitmdump --version
+
+You don't need to activate the venv: run the app with `.venv/bin/python` (see below), and it finds
+`.venv/bin/mitmdump` by itself. To recreate the venv from scratch, delete the `.venv` folder and run the steps again.
 
 ---
 
@@ -86,5 +104,6 @@ If the app is killed and the device has no internet, switch the proxy off by han
 | `net_inspector.py` | Net Inspector app |
 | `net_model.py` | Captured calls, filters, HAR, app matching |
 | `net_capture_addon.py` | mitmproxy add-on that streams calls to Net Inspector |
+| `requirements.txt` | Python packages for Net Inspector |
 | `adb_common.py` | adb helpers shared by both apps |
 | `tests/` | Tests: `.venv/bin/python -m unittest discover -s tests -v` |
