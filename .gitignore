@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+
+# mitmproxy CA (generated at runtime, contains private keys)
+.mitmproxy/
+
+# Local settings written by net_inspector.py
+.net_inspector.json
+
+# macOS
+.DS_Store
