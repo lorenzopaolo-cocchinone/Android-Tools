@@ -1,21 +1,22 @@
 # Android dev tools
 
-Two desktop apps for Android devices and emulators, driven over `adb`:
+Three desktop apps for Android devices and emulators, driven over `adb`:
 
 - **Room SQL** – run SQL on any app's Room/SQLite database, and edit results in place.
 - **Net Inspector** – see every HTTP(S) call the whole device makes, from any app.
+- **MMKV Inspector** – see and edit the keys and values in any app's MMKV storage.
 
 Needs `adb` (Android SDK platform-tools) and a device or emulator with USB debugging on.
 
 ## Setup (once)
 
-Room SQL works with plain `python3`. Net Inspector needs a virtual environment with the packages in `requirements.txt`.
+Room SQL and MMKV Inspector work with plain `python3`. Net Inspector (and opening encrypted MMKV stores) needs a virtual environment with the packages in `requirements.txt`.
 
 **Requirements**
 - Python 3.12 or newer, with Tkinter (python.org installers include it; with Homebrew: `brew install python-tk`)
 - `adb` on your `PATH`
 - Python packages (`requirements.txt`):
-  - `mitmproxy` – the proxy that captures the calls
+  - `mitmproxy` – the proxy that captures the calls (it also brings `cryptography`, used for encrypted MMKV stores)
   - `pillow` – optional, for JPEG/WebP previews (PNG/GIF work without it)
 
 **Create the venv and install the packages**, from the project folder:
@@ -95,6 +96,48 @@ If the app is killed and the device has no internet, switch the proxy off by han
 
 ---
 
+# MMKV Inspector
+
+    python3 mmkv_inspector.py
+
+Use `.venv/bin/python mmkv_inspector.py` instead to open encrypted stores.
+Like Room SQL, the app must be **debuggable** (`run-as`) or the device **rooted** (`su`).
+
+1. Pick the device, then the **User** (the current user is listed first; on Android Automotive that's usually 10),
+   then the package. Only packages installed for that user are listed.
+2. Pick the **Store**. Every MMKV store in the app's data folder is found (a file with a `.crc` file next to it).
+   Stores in the default `files/mmkv` folder are shown by name only, e.g. `mmkv.default`.
+3. Click a key to see its value. JSON is formatted. Timestamps also show as dates.
+
+**Value types:** MMKV doesn't record a value's type, so the type is a guess. For example, a 1-byte `1` could be
+`true` or the int `1`. The detail panel lists every way the bytes can be read. Double-click a reading, or use
+**View as** (also in the right-click menu), to pick the type for that key. Choices are saved in `.mmkv_inspector.json`
+and marked ✎ in the list.
+
+**Editing**
+- **Edit:** double-click a key (or **Edit…**, or right-click → *Edit value…*). Pick the type, type the value, and the
+  dialog shows the bytes that will be stored, or what's wrong with the input. ⌘↵ saves.
+  - int and long are stored the same way, so `int` covers both.
+  - A string set is a JSON list, e.g. `["a", "b"]`. `bytes` is hex. `hex` is the raw stored value, for experts.
+- **+ Add key** adds a new key. **Delete** (or the ⌫ key) removes the selected keys.
+- Each change is confirmed first. Then the app is **force-stopped**, the store is read again (so changes the app made
+  meanwhile are kept), and a fresh, compacted file is written with a matching `.crc`. Before pushing, the new file is
+  read back to check it.
+- A copy of the files before each write is saved in `.mmkv_backups/<device>/<package>/`.
+  **Undo last write** puts the previous version back.
+- Encrypted stores can be edited once the crypt key is set.
+
+**More**
+- **Filter** matches keys and values.
+- **Auto refresh** re-reads the store every 2 seconds if it changed on the device. **⟳ Reload** forces a fresh read.
+- Right-click to copy a key, a value or rows. ⌘C copies the selected rows.
+- **Export JSON…** saves all keys and values, using the chosen types.
+- **Crypt key…**: for stores opened with a crypt key, enter the same key. It's kept only until the app closes.
+- The status bar shows the key count, the space used, keys deleted since the last compaction, and a CRC warning if
+  the app was writing while the files were copied (press ⟳ Reload).
+
+---
+
 ## Files
 
 | File | What it is |
@@ -105,5 +148,7 @@ If the app is killed and the device has no internet, switch the proxy off by han
 | `net_model.py` | Captured calls, filters, HAR, app matching |
 | `net_capture_addon.py` | mitmproxy add-on that streams calls to Net Inspector |
 | `requirements.txt` | Python packages for Net Inspector |
-| `adb_common.py` | adb helpers shared by both apps |
+| `mmkv_inspector.py` | MMKV Inspector app |
+| `mmkv_model.py` | Reads MMKV files, guesses value types |
+| `adb_common.py` | adb helpers shared by the apps |
 | `tests/` | Tests: `.venv/bin/python -m unittest discover -s tests -v` |

@@ -23,7 +23,7 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from adb_common import AdbError, DeviceBase, list_devices
+from adb_common import AdbError, AppDataDevice, list_devices
 from sql_editor import (SqlAutocomplete, SqlHighlighter, is_write, parse_value,
                         single_table_select, split_statements, sql_literal)
 
@@ -33,40 +33,8 @@ MAX_ROWS = 5000
 MAX_HISTORY = 300
 
 
-class Device(DeviceBase):
-    """adb access to an app's private files, via run-as (debuggable app) or su (root)."""
-
-    @staticmethod
-    def data_dir(access, pkg):
-        return f"/data/user/{access[1]}/{pkg}"
-
-    @staticmethod
-    def wrap(access, pkg, inner):
-        """Wrap a shell command so it can read the app's files. access is (mode, user_id)."""
-        mode, user = access
-        if mode == "run-as":
-            user_flag = f" --user {user}" if user else ""
-            return f"run-as {shlex.quote(pkg)}{user_flag} sh -c {shlex.quote(inner)}"
-        if mode == "su":
-            return f"su -c {shlex.quote(inner)}"
-        if mode == "su0":  # emulator-style su
-            return f"su 0 sh -c {shlex.quote(inner)}"
-        raise ValueError(mode)
-
-    def detect_access(self, pkg):
-        """Return the first (mode, user) that can read the app's data folder."""
-        errors = []
-        for user in self.users():
-            for mode in ("run-as", "su", "su0"):
-                access = (mode, user)
-                cmd = f"ls {shlex.quote(self.data_dir(access, pkg))} >/dev/null && echo __OK__"
-                _, out, err = self.shell(self.wrap(access, pkg, cmd))
-                if "__OK__" in out:
-                    return access
-                errors.append(f"user {user} {mode}: {(err or out).strip()[:150]}")
-        raise AdbError("Can't access the app's data.\n"
-                       "The app must be debuggable (run-as) or the device rooted (su).\n\n"
-                       + "\n".join(errors))
+class Device(AppDataDevice):
+    """Room/SQLite databases of one app."""
 
     def list_databases(self, access, pkg):
         db_dir = self.data_dir(access, pkg) + "/databases"
@@ -120,9 +88,6 @@ class Device(DeviceBase):
         proc = self.run("exec-in", self.wrap(access, pkg, inner), data=data)
         if proc.returncode != 0:
             raise AdbError("Failed to push the database back:\n" + proc.stderr.decode(errors="replace"))
-
-    def force_stop(self, access, pkg):
-        self.shell(f"am force-stop --user {access[1]} {shlex.quote(pkg)}")
 
 
 class History:

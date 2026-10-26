@@ -1,4 +1,4 @@
-"""adb helpers shared by Room SQL and Net Inspector."""
+"""adb helpers shared by Room SQL, Net Inspector and MMKV Inspector."""
 
 import os
 import re
@@ -69,6 +69,12 @@ class DeviceBase:
         cur = int(cur.strip()) if cur.strip().isdigit() else 0
         return [cur] + [u for u in ids if u != cur]
 
+    def user_list(self):
+        """[(user id, name)], current user first."""
+        _, out, _ = self.shell("pm list users")
+        names = {int(i): n for i, n in re.findall(r"UserInfo\{(\d+):([^:}]*)", out)}
+        return [(u, names.get(u, "")) for u in self.users()]
+
     def root_wrap(self):
         """A function that wraps a shell command to run as root, or None if no root."""
         if self._root_wrap is False:
@@ -93,3 +99,43 @@ class DeviceBase:
                     # Several packages can share a uid (e.g. "android" and system apps).
                     uids.setdefault(int(uid), m.group(1))
         return uids
+
+
+class AppDataDevice(DeviceBase):
+    """Reads an app's private files, via run-as (debuggable app) or su (root)."""
+
+    @staticmethod
+    def data_dir(access, pkg):
+        return f"/data/user/{access[1]}/{pkg}"
+
+    @staticmethod
+    def wrap(access, pkg, inner):
+        """Wrap a shell command so it can read the app's files. access is (mode, user_id)."""
+        mode, user = access
+        if mode == "run-as":
+            user_flag = f" --user {user}" if user else ""
+            return f"run-as {shlex.quote(pkg)}{user_flag} sh -c {shlex.quote(inner)}"
+        if mode == "su":
+            return f"su -c {shlex.quote(inner)}"
+        if mode == "su0":  # emulator-style su
+            return f"su 0 sh -c {shlex.quote(inner)}"
+        raise ValueError(mode)
+
+    def detect_access(self, pkg, user=None):
+        """Return the first (mode, user) that can read the app's data folder.
+        With user=None every user is tried, current user first."""
+        errors = []
+        for u in (self.users() if user is None else [user]):
+            for mode in ("run-as", "su", "su0"):
+                access = (mode, u)
+                cmd = f"ls {shlex.quote(self.data_dir(access, pkg))} >/dev/null && echo __OK__"
+                _, out, err = self.shell(self.wrap(access, pkg, cmd))
+                if "__OK__" in out:
+                    return access
+                errors.append(f"user {u} {mode}: {(err or out).strip()[:150]}")
+        raise AdbError("Can't access the app's data.\n"
+                       "The app must be debuggable (run-as) or the device rooted (su).\n\n"
+                       + "\n".join(errors))
+
+    def force_stop(self, access, pkg):
+        self.shell(f"am force-stop --user {access[1]} {shlex.quote(pkg)}")

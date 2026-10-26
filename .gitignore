@@ -15,3 +15,7 @@ venv/
 
 # macOS
 .DS_Store
+
+# Local settings written by mmkv_inspector.py
+.mmkv_inspector.json
+.mmkv_backups/
